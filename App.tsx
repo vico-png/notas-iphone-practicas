@@ -15,35 +15,45 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NotesProvider>
         <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Home"
-          screenOptions={{
-            headerStyle: {
-              backgroundColor: "#F5F5F5",
-            },
-            headerTintColor: "#007AFF",
-            headerTitleStyle: {
-              fontWeight: "600",
-            },
-          }}
-        >
-          <Stack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="NoteEditor"
-            component={NoteEditorScreen}
-            options={{
-              title: "Nota",
-              headerBackTitle: "Notas",
+          <Stack.Navigator
+            initialRouteName="Home"
+            screenOptions={{
+              headerStyle: {
+                backgroundColor: "#F2F2F7",
+              },
+              headerShadowVisible: false,
+              headerTintColor: "#007AFF",
+              headerTitleStyle: {
+                fontWeight: "600",
+                fontSize: 17,
+              },
+              contentStyle: {
+                backgroundColor: "#F2F2F7",
+              },
+              animation: "slide_from_right",
             }}
-          />
-        </Stack.Navigator>
-        <StatusBar style="auto" />
-      </NavigationContainer>
-    </NotesProvider>
+          >
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="NoteEditor"
+              component={NoteEditorScreen}
+              options={{
+                title: "Nota",
+                headerBackTitle: "Notas",
+                headerStyle: {
+                  backgroundColor: "#F2F2F7",
+                },
+                headerShadowVisible: true,
+              }}
+            />
+          </Stack.Navigator>
+          <StatusBar style="dark" />
+        </NavigationContainer>
+      </NotesProvider>
     </GestureHandlerRootView>
   );
 }

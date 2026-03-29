@@ -8,28 +8,47 @@ import {
     Alert,
     ScrollView,
     Modal,
-    BackHandler,
+    Image,
+    Dimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNotes } from "../context/NotesContext";
 import { RootStackParamList } from "../types/Note";
-import { Image, Dimensions } from "react-native";
 import ImageViewer from "react-native-image-zoom-viewer";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "NoteEditor">;
 type RouteProps = RouteProp<RootStackParamList, "NoteEditor">;
 
-const COLORS = [
-    "#FFFFFF",
-    "#FF9500",
-    "#FFCC00",
-    "#34C759",
-    "#007AFF",
-    "#5856D6",
-    "#AF52DE",
-    "#FF2D55",
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// iOS system colors
+const IOS = {
+    background: "#F2F2F7",
+    card: "#FFFFFF",
+    separator: "#C6C6C8",
+    label: "#000000",
+    secondaryLabel: "#3C3C43",
+    systemBlue: "#007AFF",
+    systemRed: "#FF3B30",
+    systemGreen: "#34C759",
+    systemGray: "#8E8E93",
+    systemGray4: "#D1D1D6",
+    systemGray5: "#E5E5EA",
+    systemGray6: "#F2F2F7",
+};
+
+// iOS-inspired color palette for note backgrounds
+const NOTE_COLORS: { label: string; value: string }[] = [
+    { label: "Blanco",    value: "#FFFFFF" },
+    { label: "Arena",     value: "#FFF9F0" },
+    { label: "Amarillo",  value: "#FFF3C4" },
+    { label: "Verde",     value: "#D4F5E2" },
+    { label: "Azul",      value: "#D0E8FF" },
+    { label: "Lila",      value: "#E8D8FF" },
+    { label: "Rosa",      value: "#FFD6E7" },
+    { label: "Naranja",   value: "#FFE4CC" },
 ];
 
 const NoteEditorScreen: React.FC = () => {
@@ -47,10 +66,10 @@ const NoteEditorScreen: React.FC = () => {
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [isPinned, setIsPinned] = useState(existingNote?.isPinned || false);
     const [isCompleted, setIsCompleted] = useState(existingNote?.isCompleted || false);
-    const [hasChanges, setHasChanges] = useState(false);
     const [currentNoteId, setCurrentNoteId] = useState(noteId);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+    // Refs for auto-save
     const titleRef = useRef(title);
     const contentRef = useRef(content);
     const imagesRef = useRef(images);
@@ -68,43 +87,33 @@ const NoteEditorScreen: React.FC = () => {
     }, [title, content, images, selectedColor, isPinned, isCompleted]);
 
     const handleSave = useCallback(async () => {
-        const currentTitle = titleRef.current;
-        const currentContent = contentRef.current;
-        const currentImages = imagesRef.current;
-        const currentColor = selectedColorRef.current;
-        const currentPinned = isPinnedRef.current;
-        const currentCompleted = isCompletedRef.current;
+        const t = titleRef.current;
+        const c = contentRef.current;
+        const img = imagesRef.current;
+        const col = selectedColorRef.current;
+        const pin = isPinnedRef.current;
+        const comp = isCompletedRef.current;
 
-        if (!currentTitle.trim() && !currentContent.trim() && currentImages.length === 0) {
-            return;
-        }
+        if (!t.trim() && !c.trim() && img.length === 0) return;
 
         if (currentNoteId) {
             const note = getNoteById(currentNoteId);
             if (note) {
-                await updateNote(currentNoteId, currentTitle, currentContent, currentImages, currentColor);
-                if (Boolean(note.isPinned) !== currentPinned) {
-                    await togglePin(currentNoteId);
-                }
-                if (Boolean(note.isCompleted) !== currentCompleted) {
-                    await toggleComplete(currentNoteId);
-                }
+                await updateNote(currentNoteId, t, c, img, col);
+                if (Boolean(note.isPinned) !== pin) await togglePin(currentNoteId);
+                if (Boolean(note.isCompleted) !== comp) await toggleComplete(currentNoteId);
             }
         } else {
-            const newNote = await createNote(currentTitle, currentContent, currentImages, currentColor);
+            const newNote = await createNote(t, c, img, col);
             setCurrentNoteId(newNote.id);
-            if (currentPinned) {
-                await togglePin(newNote.id);
-            }
-            if (currentCompleted) {
-                await toggleComplete(newNote.id);
-            }
+            if (pin) await togglePin(newNote.id);
+            if (comp) await toggleComplete(newNote.id);
         }
     }, [currentNoteId, createNote, updateNote, togglePin, toggleComplete, getNoteById]);
 
-    // Auto-save when the user navigates back (back button, iOS swipe, etc.)
+    // Auto-save on back navigation
     useEffect(() => {
-        const unsubscribe = navigation.addListener('beforeRemove', () => {
+        const unsubscribe = navigation.addListener("beforeRemove", () => {
             handleSave();
         });
         return unsubscribe;
@@ -112,138 +121,129 @@ const NoteEditorScreen: React.FC = () => {
 
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
+        if (status !== "granted") {
             Alert.alert("Permiso denegado", "Se necesita permiso para acceder a la galería.");
             return;
         }
-
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
+            mediaTypes: ["images"],
             allowsEditing: false,
             quality: 1,
         });
-
         if (!result.canceled) {
-            setImages(prev => [...prev, result.assets[0].uri]);
-            setHasChanges(true);
+            setImages((prev) => [...prev, result.assets[0].uri]);
         }
     };
 
     const removeImage = (index: number) => {
-        Alert.alert(
-            "Eliminar imagen",
-            "¿Quieres quitar esta imagen de la nota?",
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Eliminar",
-                    style: "destructive",
-                    onPress: () => {
-                        setImages(prev => prev.filter((_, i) => i !== index));
-                        setHasChanges(true);
-                    }
-                }
-            ]
-        );
+        Alert.alert("Quitar imagen", "¿Quieres quitar esta imagen de la nota?", [
+            { text: "Cancelar", style: "cancel" },
+            {
+                text: "Quitar",
+                style: "destructive",
+                onPress: () => setImages((prev) => prev.filter((_, i) => i !== index)),
+            },
+        ]);
     };
 
+    // Header buttons
     useEffect(() => {
         navigation.setOptions({
             headerRight: () => (
                 <View style={styles.headerButtons}>
-                    <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={pickImage}
-                    >
-                        <Text style={styles.headerButtonIcon}>🖼️</Text>
+                    <TouchableOpacity style={styles.headerBtn} onPress={pickImage} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={styles.headerBtnIcon}>🖼️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={() => setIsCompleted(!isCompleted)}
+                        style={styles.headerBtn}
+                        onPress={() => setIsCompleted((v) => !v)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        <Text style={styles.headerButtonIcon}>
-                            {isCompleted ? "✅" : "⬜"}
-                        </Text>
+                        <View style={[styles.headerCircle, isCompleted && styles.headerCircleDone]}>
+                            {isCompleted && <Text style={styles.headerCircleCheck}>✓</Text>}
+                        </View>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={() => setIsPinned(!isPinned)}
+                        style={styles.headerBtn}
+                        onPress={() => setIsPinned((v) => !v)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        <Text style={styles.headerButtonIcon}>
-                            {isPinned ? "📌" : "📍"}
-                        </Text>
+                        <Text style={styles.headerBtnIcon}>{isPinned ? "📌" : "📍"}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={styles.headerButton}
+                        style={styles.headerBtn}
                         onPress={() => setShowColorPicker(true)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        <Text style={styles.headerButtonIcon}>🎨</Text>
+                        <View style={[styles.colorDotBtn, { backgroundColor: selectedColor }]} />
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={styles.headerButton}
+                        style={styles.headerDoneBtn}
                         onPress={() => navigation.goBack()}
+                        activeOpacity={0.7}
                     >
-                        <Text style={styles.headerButtonText}>Hecho</Text>
+                        <Text style={styles.headerDoneText}>Listo</Text>
                     </TouchableOpacity>
                 </View>
             ),
         });
-    }, [navigation, isPinned, isCompleted, handleSave]);
+    }, [navigation, isPinned, isCompleted, selectedColor, handleSave]);
 
     const handleDelete = () => {
         if (!existingNote && !currentNoteId) return;
-
-        Alert.alert(
-            "Eliminar nota",
-            "¿Estás seguro de que quieres eliminar esta nota?",
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Eliminar",
-                    style: "destructive",
-                    onPress: async () => {
-                        const idToDelete = currentNoteId || existingNote?.id;
-                        if (idToDelete) {
-                            await deleteNote(idToDelete);
-                        }
-                        navigation.goBack();
-                    },
+        Alert.alert("Eliminar nota", "¿Seguro que quieres eliminar esta nota?", [
+            { text: "Cancelar", style: "cancel" },
+            {
+                text: "Eliminar",
+                style: "destructive",
+                onPress: async () => {
+                    const id = currentNoteId || existingNote?.id;
+                    if (id) await deleteNote(id);
+                    navigation.goBack();
                 },
-            ]
-        );
+            },
+        ]);
     };
 
     const noteToShow = currentNoteId ? getNoteById(currentNoteId) : existingNote;
+    const noteBackground = selectedColor === "#FFFFFF" ? IOS.background : selectedColor;
 
     return (
-        <View style={[styles.container, { backgroundColor: selectedColor }]}>
-            <ScrollView style={styles.scrollView} keyboardDismissMode="on-drag">
+        <View style={[styles.container, { backgroundColor: noteBackground }]}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardDismissMode="interactive"
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Title */}
                 <TextInput
-                    ref={titleRef as any}
                     style={styles.titleInput}
                     placeholder="Título"
-                    placeholderTextColor="#8E8E93"
+                    placeholderTextColor={IOS.systemGray}
                     value={title}
-                    onChangeText={(text) => {
-                        setTitle(text);
-                        setHasChanges(true);
-                    }}
+                    onChangeText={setTitle}
                     multiline
                     autoFocus={!existingNote && !currentNoteId}
-                />
-                <TextInput
-                    style={styles.contentInput}
-                    placeholder="Empieza a escribir..."
-                    placeholderTextColor="#8E8E93"
-                    value={content}
-                    onChangeText={(text) => {
-                        setContent(text);
-                        setHasChanges(true);
-                    }}
-                    multiline
-                    textAlignVertical="top"
+                    selectionColor={IOS.systemBlue}
                 />
 
+                {/* Divider */}
+                <View style={styles.divider} />
+
+                {/* Content */}
+                <TextInput
+                    style={styles.contentInput}
+                    placeholder="Empieza a escribir aquí..."
+                    placeholderTextColor={IOS.systemGray}
+                    value={content}
+                    onChangeText={setContent}
+                    multiline
+                    textAlignVertical="top"
+                    selectionColor={IOS.systemBlue}
+                />
+
+                {/* Image gallery */}
                 {images.length > 0 && (
                     <View style={styles.imageGallery}>
                         {images.map((uri, index) => (
@@ -251,25 +251,35 @@ const NoteEditorScreen: React.FC = () => {
                                 key={`${uri}-${index}`}
                                 onPress={() => setZoomedImage(uri)}
                                 onLongPress={() => removeImage(index)}
-                                activeOpacity={0.8}
+                                activeOpacity={0.85}
                                 style={styles.imageWrapper}
                             >
                                 <Image source={{ uri }} style={styles.noteImage} />
+                                <View style={styles.imageOverlay} />
                             </TouchableOpacity>
                         ))}
+                        {/* Add image tile */}
+                        <TouchableOpacity
+                            onPress={pickImage}
+                            style={styles.addImageTile}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.addImageIcon}>＋</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
             </ScrollView>
 
+            {/* Full-screen image viewer */}
             {zoomedImage && (
                 <Modal
                     visible={!!zoomedImage}
-                    transparent={true}
+                    transparent
                     animationType="fade"
                     onRequestClose={() => setZoomedImage(null)}
                 >
                     <ImageViewer
-                        imageUrls={images.map(uri => ({ url: uri }))}
+                        imageUrls={images.map((uri) => ({ url: uri }))}
                         index={images.indexOf(zoomedImage)}
                         onCancel={() => setZoomedImage(null)}
                         enableSwipeDown
@@ -278,8 +288,11 @@ const NoteEditorScreen: React.FC = () => {
                             <TouchableOpacity
                                 style={styles.closeZoom}
                                 onPress={() => setZoomedImage(null)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             >
-                                <Text style={styles.closeZoomText}>✕</Text>
+                                <View style={styles.closeZoomCircle}>
+                                    <Text style={styles.closeZoomText}>✕</Text>
+                                </View>
                             </TouchableOpacity>
                         )}
                         saveToLocalByLongPress={false}
@@ -287,20 +300,27 @@ const NoteEditorScreen: React.FC = () => {
                 </Modal>
             )}
 
+            {/* Bottom bar */}
             {noteToShow && (
                 <View style={styles.bottomBar}>
                     <Text style={styles.dateText}>
-                        {isCompleted ? "✅ Completada" : "📝 Pendiente"} • Creada: {noteToShow.createdAt.toLocaleDateString("es-ES")}
+                        Editada{" "}
+                        {noteToShow.updatedAt.toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "short",
+                        })}
                     </Text>
                     <TouchableOpacity
                         style={styles.deleteButton}
                         onPress={handleDelete}
+                        hitSlop={{ top: 8, bottom: 8, left: 12, right: 8 }}
                     >
-                        <Text style={styles.deleteIcon}>🗑️</Text>
+                        <Text style={styles.deleteIcon}>🗑</Text>
                     </TouchableOpacity>
                 </View>
             )}
 
+            {/* Color picker modal */}
             <Modal
                 visible={showColorPicker}
                 transparent
@@ -312,26 +332,34 @@ const NoteEditorScreen: React.FC = () => {
                     activeOpacity={1}
                     onPress={() => setShowColorPicker(false)}
                 >
-                    <View style={styles.colorPickerContainer}>
-                        <Text style={styles.colorPickerTitle}>Color de fondo</Text>
+                    <View style={styles.colorSheet}>
+                        {/* Handle */}
+                        <View style={styles.sheetHandle} />
+                        <Text style={styles.colorSheetTitle}>Color de la nota</Text>
+
                         <View style={styles.colorGrid}>
-                            {COLORS.map((color) => (
+                            {NOTE_COLORS.map(({ label, value }) => (
                                 <TouchableOpacity
-                                    key={color}
-                                    style={[
-                                        styles.colorOption,
-                                        { backgroundColor: color },
-                                        selectedColor === color && styles.selectedColor,
-                                    ]}
+                                    key={value}
                                     onPress={() => {
-                                        setSelectedColor(color);
-                                        setHasChanges(true);
+                                        setSelectedColor(value);
                                         setShowColorPicker(false);
                                     }}
+                                    activeOpacity={0.8}
+                                    style={styles.colorOptionWrapper}
                                 >
-                                    {selectedColor === color && (
-                                        <Text style={styles.checkmark}>✓</Text>
-                                    )}
+                                    <View
+                                        style={[
+                                            styles.colorOption,
+                                            { backgroundColor: value },
+                                            selectedColor === value && styles.colorOptionSelected,
+                                        ]}
+                                    >
+                                        {selectedColor === value && (
+                                            <Text style={styles.colorCheckmark}>✓</Text>
+                                        )}
+                                    </View>
+                                    <Text style={styles.colorLabel}>{label}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -349,75 +377,201 @@ const styles = StyleSheet.create({
     scrollView: {
         flex: 1,
     },
+    scrollContent: {
+        paddingBottom: 40,
+    },
+
+    // ── Text inputs ──
     titleInput: {
-        fontSize: 28,
-        fontWeight: "bold",
+        fontSize: 26,
+        fontWeight: "700",
         paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 8,
-        color: "#000",
+        paddingTop: 20,
+        paddingBottom: 10,
+        color: IOS.label,
+        letterSpacing: -0.5,
+    },
+    divider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: IOS.separator,
+        marginHorizontal: 20,
+        marginBottom: 6,
     },
     contentInput: {
         fontSize: 17,
         paddingHorizontal: 20,
+        paddingTop: 10,
         paddingBottom: 100,
-        color: "#000",
-        lineHeight: 24,
-        minHeight: 300,
+        color: IOS.label,
+        lineHeight: 25,
+        minHeight: 280,
     },
+
+    // ── Header buttons ──
     headerButtons: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
-        marginRight: 8,
+        gap: 4,
+        marginRight: 4,
     },
-    headerButton: {
-        padding: 8,
+    headerBtn: {
+        padding: 7,
+        justifyContent: "center",
+        alignItems: "center",
     },
-    headerButtonIcon: {
-        fontSize: 20,
+    headerBtnIcon: {
+        fontSize: 19,
     },
-    headerButtonText: {
-        color: "#007AFF",
-        fontSize: 17,
+    headerCircle: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        borderColor: IOS.systemGray,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    headerCircleDone: {
+        backgroundColor: IOS.systemGreen,
+        borderColor: IOS.systemGreen,
+    },
+    headerCircleCheck: {
+        color: "#FFF",
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    colorDotBtn: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        borderColor: IOS.systemGray4,
+    },
+    headerDoneBtn: {
+        backgroundColor: IOS.systemBlue,
+        borderRadius: 14,
+        paddingHorizontal: 13,
+        paddingVertical: 6,
+        marginLeft: 4,
+    },
+    headerDoneText: {
+        color: "#FFF",
+        fontSize: 15,
         fontWeight: "600",
     },
+
+    // ── Image Gallery ──
+    imageGallery: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        paddingHorizontal: 16,
+        gap: 8,
+        marginTop: 8,
+        paddingBottom: 20,
+    },
+    imageWrapper: {
+        width: (SCREEN_WIDTH - 48) / 3,
+        aspectRatio: 1,
+        borderRadius: 10,
+        overflow: "hidden",
+        backgroundColor: IOS.systemGray5,
+    },
+    noteImage: {
+        width: "100%",
+        height: "100%",
+    },
+    imageOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.02)",
+    },
+    addImageTile: {
+        width: (SCREEN_WIDTH - 48) / 3,
+        aspectRatio: 1,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderStyle: "dashed",
+        borderColor: IOS.systemGray4,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    addImageIcon: {
+        fontSize: 28,
+        color: IOS.systemGray,
+        fontWeight: "300",
+    },
+
+    // ── Image Zoom ──
+    closeZoom: {
+        position: "absolute",
+        top: 54,
+        right: 20,
+        zIndex: 10,
+    },
+    closeZoomCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "rgba(80,80,80,0.9)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    closeZoomText: {
+        color: "#FFF",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+
+    // ── Bottom bar ──
     bottomBar: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderTopWidth: 1,
-        borderTopColor: "rgba(0,0,0,0.1)",
+        paddingVertical: 14,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: IOS.separator,
+        backgroundColor: "rgba(255,255,255,0.85)",
     },
     dateText: {
         fontSize: 13,
-        color: "#8E8E93",
+        color: IOS.systemGray,
+        letterSpacing: -0.1,
     },
     deleteButton: {
-        padding: 8,
+        padding: 4,
     },
     deleteIcon: {
-        fontSize: 20,
+        fontSize: 18,
     },
+
+    // ── Color Sheet ──
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        backgroundColor: "rgba(0,0,0,0.45)",
         justifyContent: "flex-end",
     },
-    colorPickerContainer: {
-        backgroundColor: "#FFF",
+    colorSheet: {
+        backgroundColor: IOS.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        padding: 24,
-        paddingBottom: 40,
+        paddingHorizontal: 24,
+        paddingTop: 12,
+        paddingBottom: 44,
     },
-    colorPickerTitle: {
-        fontSize: 18,
-        fontWeight: "600",
+    sheetHandle: {
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: IOS.systemGray4,
+        alignSelf: "center",
         marginBottom: 16,
+    },
+    colorSheetTitle: {
+        fontSize: 17,
+        fontWeight: "600",
         textAlign: "center",
+        color: IOS.label,
+        marginBottom: 20,
     },
     colorGrid: {
         flexDirection: "row",
@@ -425,69 +579,37 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         gap: 16,
     },
+    colorOptionWrapper: {
+        alignItems: "center",
+        gap: 6,
+    },
     colorOption: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        borderWidth: 2,
-        borderColor: "#E0E0E0",
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        borderWidth: 1.5,
+        borderColor: IOS.systemGray4,
         justifyContent: "center",
         alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+        elevation: 2,
     },
-    selectedColor: {
-        borderColor: "#007AFF",
-        borderWidth: 3,
+    colorOptionSelected: {
+        borderColor: IOS.systemBlue,
+        borderWidth: 2.5,
     },
-    checkmark: {
-        fontSize: 20,
-        color: "#007AFF",
+    colorCheckmark: {
+        fontSize: 22,
+        color: IOS.systemBlue,
+        fontWeight: "700",
     },
-    imageGallery: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        paddingHorizontal: 15,
-        gap: 10,
-        marginTop: 10,
-        paddingBottom: 20,
-    },
-    imageWrapper: {
-        width: "30%",
-        aspectRatio: 1,
-        borderRadius: 8,
-        overflow: "hidden",
-        backgroundColor: "rgba(0,0,0,0.05)",
-    },
-    noteImage: {
-        width: "100%",
-        height: "100%",
-    },
-    zoomBackground: {
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.95)",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    zoomedImage: {
-        width: "100%",
-        height: "80%",
-    },
-    closeZoom: {
-        position: "absolute",
-        top: 60,
-        right: 25,
-        zIndex: 10,
-        padding: 5,
-    },
-    closeZoomText: {
-        color: "#FFF",
-        fontSize: 28,
-        fontWeight: "300",
-    },
-    zoomHelpText: {
-        color: "rgba(255,255,255,0.5)",
-        position: "absolute",
-        bottom: 50,
-        fontSize: 14,
+    colorLabel: {
+        fontSize: 11,
+        color: IOS.systemGray,
+        fontWeight: "500",
     },
 });
 

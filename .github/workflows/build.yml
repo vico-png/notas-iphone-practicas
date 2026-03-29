@@ -1,0 +1,57 @@
+name: Build iOS IPA
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Expo Prebuild
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install Pods
+        run: |
+          cd ios
+          pod install
+
+      - name: Build with Xcode (Unsigned)
+        run: |
+          cd ios
+          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          PROJECT=$(ls -d *.xcodeproj | head -n 1 | sed 's/\.xcodeproj//')
+          echo "Building workspace: $WORKSPACE with scheme: $PROJECT"
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$PROJECT" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $PWD/build/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean archive
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r ios/build/App.xcarchive/Products/Applications/*.app Payload/
+          zip -r Notas.ipa Payload
+          
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notas_IPA
+          path: Notas.ipa
