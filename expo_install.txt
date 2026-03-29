@@ -1,0 +1,128 @@
+The following packages should be updated for best compatibility with the installed expo version:
+  @react-native-async-storage/async-storage@2.1.0 - expected version: 2.2.0
+  expo-status-bar@2.0.1 - expected version: ~3.0.9
+  react@18.3.1 - expected version: 19.1.0
+  react-native@0.76.3 - expected version: 0.81.5
+  react-native-safe-area-context@4.12.0 - expected version: ~5.6.0
+  react-native-screens@4.1.0 - expected version: ~4.16.0
+  @types/react@18.3.28 - expected version: ~19.1.10
+  typescript@6.0.2 - expected version: ~5.9.2
+Your project may not work correctly until you install the expected versions of the packages.
+› Installing 8 SDK 54.0.0 compatible native modules using npm
+> npm install
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: notas-app@1.0.0
+npm warn Found: react@18.3.1
+npm warn node_modules/react
+npm warn   react@"19.1.0" from the root project
+npm warn   19 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.76.3
+npm warn node_modules/react-native
+npm warn   react-native@"0.81.5" from the root project
+npm warn   17 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: notas-app@1.0.0
+npm warn Found: react@18.3.1
+npm warn node_modules/react
+npm warn   react@"19.1.0" from the root project
+npm warn   19 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.76.3
+npm warn node_modules/react-native
+npm warn   react-native@"0.81.5" from the root project
+npm warn   17 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: notas-app@1.0.0
+npm warn Found: react@18.3.1
+npm warn node_modules/react
+npm warn   react@"19.1.0" from the root project
+npm warn   19 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.76.3
+npm warn node_modules/react-native
+npm warn   react-native@"0.81.5" from the root project
+npm warn   17 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: notas-app@1.0.0
+npm warn Found: react@18.3.1
+npm warn node_modules/react
+npm warn   react@"19.1.0" from the root project
+npm warn   19 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.76.3
+npm warn node_modules/react-native
+npm warn   react-native@"0.81.5" from the root project
+npm warn   17 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: notas-app@1.0.0
+npm warn Found: react@18.3.1
+npm warn node_modules/react
+npm warn   react@"19.1.0" from the root project
+npm warn   19 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.76.3
+npm warn node_modules/react-native
+npm warn   react-native@"0.81.5" from the root project
+npm warn   17 more (@expo/devtools, @react-native/virtualized-lists, ...)
+npm warn ERESOLVE overriding peer dependency
+npm error code ERESOLVE
+npm error ERESOLVE could not resolve
+npm error
+npm error While resolving: react-native@0.81.5
+npm error Found: @types/react@18.3.28
+npm error node_modules/@types/react
+npm error   peerOptional @types/react@"^19.1.0" from @react-native/virtualized-lists@0.81.5
+npm error   node_modules/react-native/node_modules/@react-native/virtualized-lists
+npm error     @react-native/virtualized-lists@"0.81.5" from react-native@0.81.5
+npm error     node_modules/react-native
+npm error       react-native@"0.81.5" from the root project
+npm error       18 more (@react-navigation/native, ...)
+npm error
+npm error Could not resolve dependency:
+npm error peerOptional @types/react@"^19.1.0" from react-native@0.81.5
+npm error node_modules/react-native
+npm error   react-native@"0.81.5" from the root project
+npm error   peer react-native@"*" from @react-navigation/native@7.2.1
+npm error   node_modules/@react-navigation/native
+npm error     @react-navigation/native@"^7.0.0" from the root project
+npm error     2 more (@react-navigation/elements, @react-navigation/native-stack)
+npm error   17 more (@react-navigation/native-stack, expo, ...)
+npm error
+npm error Conflicting peer dependency: @types/react@19.2.14
+npm error node_modules/@types/react
+npm error   peerOptional @types/react@"^19.1.0" from react-native@0.81.5
+npm error   node_modules/react-native
+npm error     react-native@"0.81.5" from the root project
+npm error     peer react-native@"*" from @react-navigation/native@7.2.1
+npm error     node_modules/@react-navigation/native
+npm error       @react-navigation/native@"^7.0.0" from the root project
+npm error       2 more (@react-navigation/elements, @react-navigation/native-stack)
+npm error     17 more (@react-navigation/native-stack, expo, ...)
+npm error
+npm error Fix the upstream dependency conflict, or retry
+npm error this command with --force or --legacy-peer-deps
+npm error to accept an incorrect (and potentially broken) dependency resolution.
+npm error
+npm error
+npm error For a full report see:
+npm error C:\Users\vicen\AppData\Local\npm-cache\_logs\2026-03-27T19_19_39_267Z-eresolve-report.txt
+npm error A complete log of this run can be found in: C:\Users\vicen\AppData\Local\npm-cache\_logs\2026-03-27T19_19_39_267Z-debug-0.log
+Error: npm install exited with non-zero code: 1
+Error: npm install exited with non-zero code: 1
+    at ChildProcess.completionListener (C:\Users\vicen\Desktop\app notas 2\notas-app\node_modules\@expo\spawn-async\build\spawnAsync.js:42:23)
+    at Object.onceWrapper (node:events:623:26)
+    at ChildProcess.emit (node:events:508:28)
+    at cp.emit (C:\Users\vicen\Desktop\app notas 2\notas-app\node_modules\cross-spawn\lib\enoent.js:34:29)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:305:5)
+    ...
+    at spawnAsync (C:\Users\vicen\Desktop\app notas 2\notas-app\node_modules\@expo\spawn-async\build\spawnAsync.js:7:23)
+    at NpmPackageManager.runAsync (C:\Users\vicen\Desktop\app notas 2\notas-app\node_modules\@expo\package-manager\build\node\BasePackageManager.js:41:42)
+    at C:\Users\vicen\Desktop\app notas 2\notas-app\node_modules\@expo\package-manager\build\node\NpmPackageManager.js:36:20
+    at C:\Users\vicen\Desktop\app notas 2\notas-app\node_modules\@expo\package-manager\build\utils\spawn.js:14:34
