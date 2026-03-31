@@ -175,7 +175,17 @@ const NoteEditorScreen: React.FC = () => {
                         onPress={() => setShowColorPicker(true)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        <View style={[styles.colorDotBtn, { backgroundColor: selectedColor }]} />
+                        {/* 4-quadrant palette icon */}
+                        <View style={styles.paletteBtn}>
+                            <View style={styles.paletteInner}>
+                                <View style={[styles.paletteQ, styles.paletteTopLeft,  { backgroundColor: "#FFD60A" }]} />
+                                <View style={[styles.paletteQ, styles.paletteTopRight, { backgroundColor: "#34C759" }]} />
+                                <View style={[styles.paletteQ, styles.paletteBotLeft,  { backgroundColor: "#007AFF" }]} />
+                                <View style={[styles.paletteQ, styles.paletteBotRight, { backgroundColor: "#FF6B81" }]} />
+                            </View>
+                            {/* ring showing current color */}
+                            <View style={[styles.paletteRing, { borderColor: selectedColor === "#FFFFFF" ? "#C6C6C8" : selectedColor }]} />
+                        </View>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.headerDoneBtn}
@@ -445,6 +455,36 @@ const styles = StyleSheet.create({
         height: 22,
         borderRadius: 11,
         borderWidth: 1.5,
+        borderColor: IOS.systemGray4,
+    },
+    paletteBtn: {
+        width: 26,
+        height: 26,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    paletteInner: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        overflow: "hidden",
+        flexDirection: "row",
+        flexWrap: "wrap",
+    },
+    paletteQ: {
+        width: 11,
+        height: 11,
+    },
+    paletteTopLeft:  { borderTopLeftRadius: 11 },
+    paletteTopRight: { borderTopRightRadius: 11 },
+    paletteBotLeft:  { borderBottomLeftRadius: 11 },
+    paletteBotRight: { borderBottomRightRadius: 11 },
+    paletteRing: {
+        position: "absolute",
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        borderWidth: 2,
         borderColor: IOS.systemGray4,
     },
     headerDoneBtn: {

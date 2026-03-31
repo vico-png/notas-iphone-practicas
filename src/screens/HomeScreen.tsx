@@ -414,6 +414,17 @@ const HomeScreen: React.FC = () => {
                     }
                 />
             )}
+
+            {/* ── Floating Action Button ── */}
+            {!isSelectionMode && (
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => navigation.navigate("NoteEditor", {})}
+                    activeOpacity={0.85}
+                >
+                    <Text style={styles.fabIcon}>＋</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 };
@@ -758,6 +769,31 @@ const styles = StyleSheet.create({
         height: 8,
         borderRadius: 4,
         marginRight: 6,
+    },
+
+    // ── Floating Action Button ──
+    fab: {
+        position: "absolute",
+        bottom: 32,
+        right: 24,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: IOS.systemBlue,
+        justifyContent: "center",
+        alignItems: "center",
+        shadowColor: IOS.systemBlue,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 8,
+    },
+    fabIcon: {
+        fontSize: 30,
+        color: "#FFFFFF",
+        fontWeight: "300",
+        lineHeight: 34,
+        marginTop: -1,
     },
 
     // ── Empty State ──
