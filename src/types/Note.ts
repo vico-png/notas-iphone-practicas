@@ -1,3 +1,9 @@
+export interface ChecklistItem {
+    id: string;
+    text: string;
+    checked: boolean;
+}
+
 export interface Note {
     id: string;
     title: string;
@@ -8,6 +14,8 @@ export interface Note {
     isPinned: boolean;
     color: string;
     isCompleted?: boolean;
+    isChecklistMode?: boolean;
+    checklistItems?: ChecklistItem[];
 }
 
 export type RootStackParamList = {

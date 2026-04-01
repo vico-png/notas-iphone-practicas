@@ -61,8 +61,9 @@ const HomeScreen: React.FC = () => {
             );
         }
 
-        const pinned = notesToShow.filter((n) => n.isPinned);
-        const unpinned = notesToShow.filter((n) => !n.isPinned);
+        const sorted = [...notesToShow].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+        const pinned = sorted.filter((n) => n.isPinned);
+        const unpinned = sorted.filter((n) => !n.isPinned);
         return { pinned, unpinned };
     }, [notes, searchQuery, showCompleted]);
 
@@ -222,13 +223,32 @@ const HomeScreen: React.FC = () => {
                         </View>
 
                         {/* Preview text */}
-                        {!!item.content && (
-                            <Text
-                                style={[styles.notePreview, item.isCompleted && styles.completedPreview]}
-                                numberOfLines={2}
-                            >
-                                {item.content}
-                            </Text>
+                        {item.isChecklistMode && item.checklistItems && item.checklistItems.length > 0 ? (
+                            <View style={styles.checklistPreview}>
+                                {item.checklistItems.slice(0, 2).map((clItem) => (
+                                    <View key={clItem.id} style={styles.checklistPreviewRow}>
+                                        <View style={[styles.checklistPreviewDot, clItem.checked && styles.checklistPreviewDotChecked]} />
+                                        <Text
+                                            style={[styles.notePreview, clItem.checked && styles.completedPreview]}
+                                            numberOfLines={1}
+                                        >
+                                            {clItem.text || "Elemento vacío"}
+                                        </Text>
+                                    </View>
+                                ))}
+                                {item.checklistItems.length > 2 && (
+                                    <Text style={styles.noteDate}>... y {item.checklistItems.length - 2} más</Text>
+                                )}
+                            </View>
+                        ) : (
+                            !!item.content && (
+                                <Text
+                                    style={[styles.notePreview, item.isCompleted && styles.completedPreview]}
+                                    numberOfLines={2}
+                                >
+                                    {item.content}
+                                </Text>
+                            )
                         )}
 
                         {/* Footer: date + image thumbnail */}
@@ -820,6 +840,29 @@ const styles = StyleSheet.create({
         color: IOS.systemGray,
         textAlign: "center",
         lineHeight: 22,
+    },
+    // ── Checklist Preview Styles ──
+    checklistPreview: {
+        marginTop: 2,
+        marginBottom: 4,
+        paddingLeft: 28,
+    },
+    checklistPreviewRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 1,
+    },
+    checklistPreviewDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        borderWidth: 1,
+        borderColor: IOS.systemGray,
+    },
+    checklistPreviewDotChecked: {
+        backgroundColor: IOS.systemGreen,
+        borderColor: IOS.systemGreen,
     },
 });
 

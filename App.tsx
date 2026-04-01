@@ -43,7 +43,7 @@ export default function App() {
               component={NoteEditorScreen}
               options={{
                 title: "Nota",
-                headerBackTitle: "Notas",
+                headerBackTitle: " ",
                 headerStyle: {
                   backgroundColor: "#F2F2F7",
                 },

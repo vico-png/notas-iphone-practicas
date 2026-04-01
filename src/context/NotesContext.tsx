@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import uuid from "react-native-uuid";
-import { Note } from "../types/Note";
+import { Note, ChecklistItem } from "../types/Note";
 
 interface NotesContextType {
     notes: Note[];
     loading: boolean;
     createNote: (title: string, content: string, images?: string[], color?: string) => Promise<Note>;
-    updateNote: (id: string, title: string, content: string, images?: string[], color?: string) => Promise<void>;
+    updateNote: (id: string, title: string, content: string, images?: string[], color?: string, isChecklistMode?: boolean, checklistItems?: ChecklistItem[]) => Promise<void>;
     deleteNote: (id: string) => Promise<void>;
     togglePin: (id: string) => Promise<void>;
     toggleComplete: (id: string) => Promise<void>;
@@ -75,7 +75,7 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return newNote;
     };
 
-    const updateNote = async (id: string, title: string, content: string, images?: string[], color?: string) => {
+    const updateNote = async (id: string, title: string, content: string, images?: string[], color?: string, isChecklistMode?: boolean, checklistItems?: ChecklistItem[]) => {
         setNotes((prev) =>
             prev.map((note) =>
                 note.id === id
@@ -85,6 +85,8 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         content,
                         images: images ?? note.images,
                         color: color ?? note.color,
+                        isChecklistMode: isChecklistMode ?? note.isChecklistMode,
+                        checklistItems: checklistItems ?? note.checklistItems,
                         updatedAt: new Date(),
                     }
                     : note

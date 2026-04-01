@@ -15,15 +15,15 @@ import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNotes } from "../context/NotesContext";
-import { RootStackParamList } from "../types/Note";
+import { RootStackParamList, ChecklistItem } from "../types/Note";
 import ImageViewer from "react-native-image-zoom-viewer";
+import uuid from "react-native-uuid";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "NoteEditor">;
 type RouteProps = RouteProp<RootStackParamList, "NoteEditor">;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// iOS system colors
 const IOS = {
     background: "#F2F2F7",
     card: "#FFFFFF",
@@ -39,17 +39,22 @@ const IOS = {
     systemGray6: "#F2F2F7",
 };
 
-// iOS-inspired color palette for note backgrounds
 const NOTE_COLORS: { label: string; value: string }[] = [
-    { label: "Blanco",    value: "#FFFFFF" },
-    { label: "Arena",     value: "#FFF9F0" },
-    { label: "Amarillo",  value: "#FFF3C4" },
-    { label: "Verde",     value: "#D4F5E2" },
-    { label: "Azul",      value: "#D0E8FF" },
-    { label: "Lila",      value: "#E8D8FF" },
-    { label: "Rosa",      value: "#FFD6E7" },
-    { label: "Naranja",   value: "#FFE4CC" },
+    { label: "Blanco",   value: "#FFFFFF" },
+    { label: "Arena",    value: "#FFF9F0" },
+    { label: "Amarillo", value: "#FFF3C4" },
+    { label: "Verde",    value: "#D4F5E2" },
+    { label: "Azul",     value: "#D0E8FF" },
+    { label: "Lila",     value: "#E8D8FF" },
+    { label: "Rosa",     value: "#FFD6E7" },
+    { label: "Naranja",  value: "#FFE4CC" },
 ];
+
+const makeItem = (text = ""): ChecklistItem => ({
+    id: uuid.v4() as string,
+    text,
+    checked: false,
+});
 
 const NoteEditorScreen: React.FC = () => {
     const navigation = useNavigation<NavigationProp>();
@@ -69,6 +74,14 @@ const NoteEditorScreen: React.FC = () => {
     const [currentNoteId, setCurrentNoteId] = useState(noteId);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+    // Checklist
+    const [isChecklistMode, setIsChecklistMode] = useState(existingNote?.isChecklistMode || false);
+    const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(
+        existingNote?.checklistItems && existingNote.checklistItems.length > 0
+            ? existingNote.checklistItems
+            : [makeItem()]
+    );
+
     // Refs for auto-save
     const titleRef = useRef(title);
     const contentRef = useRef(content);
@@ -76,6 +89,11 @@ const NoteEditorScreen: React.FC = () => {
     const selectedColorRef = useRef(selectedColor);
     const isPinnedRef = useRef(isPinned);
     const isCompletedRef = useRef(isCompleted);
+    const isChecklistModeRef = useRef(isChecklistMode);
+    const checklistItemsRef = useRef(checklistItems);
+
+    // Refs for each checklist TextInput
+    const inputRefs = useRef<(TextInput | null)[]>([]);
 
     useEffect(() => {
         titleRef.current = title;
@@ -84,7 +102,9 @@ const NoteEditorScreen: React.FC = () => {
         selectedColorRef.current = selectedColor;
         isPinnedRef.current = isPinned;
         isCompletedRef.current = isCompleted;
-    }, [title, content, images, selectedColor, isPinned, isCompleted]);
+        isChecklistModeRef.current = isChecklistMode;
+        checklistItemsRef.current = checklistItems;
+    }, [title, content, images, selectedColor, isPinned, isCompleted, isChecklistMode, checklistItems]);
 
     const handleSave = useCallback(async () => {
         const t = titleRef.current;
@@ -93,31 +113,75 @@ const NoteEditorScreen: React.FC = () => {
         const col = selectedColorRef.current;
         const pin = isPinnedRef.current;
         const comp = isCompletedRef.current;
+        const clMode = isChecklistModeRef.current;
+        const clItems = checklistItemsRef.current.filter(
+            (item) => item.text.trim() !== "" || item.checked
+        );
 
-        if (!t.trim() && !c.trim() && img.length === 0) return;
+        const hasContent = t.trim() || c.trim() || img.length > 0 || clItems.length > 0;
+        if (!hasContent) return;
 
         if (currentNoteId) {
             const note = getNoteById(currentNoteId);
             if (note) {
-                await updateNote(currentNoteId, t, c, img, col);
-                if (Boolean(note.isPinned) !== pin) await togglePin(currentNoteId);
-                if (Boolean(note.isCompleted) !== comp) await toggleComplete(currentNoteId);
+                const contentChanged = 
+                    note.title !== t ||
+                    note.content !== c ||
+                    note.color !== col ||
+                    Boolean(note.isChecklistMode) !== clMode ||
+                    JSON.stringify(note.images || []) !== JSON.stringify(img || []) ||
+                    JSON.stringify(note.checklistItems || []) !== JSON.stringify(clItems || []);
+
+                const pinChanged = Boolean(note.isPinned) !== pin;
+                const compChanged = Boolean(note.isCompleted) !== comp;
+
+                if (contentChanged) {
+                    await updateNote(currentNoteId, t, c, img, col, clMode, clItems);
+                }
+                
+                if (pinChanged) await togglePin(currentNoteId);
+                if (compChanged) await toggleComplete(currentNoteId);
             }
         } else {
             const newNote = await createNote(t, c, img, col);
-            setCurrentNoteId(newNote.id);
-            if (pin) await togglePin(newNote.id);
-            if (comp) await toggleComplete(newNote.id);
+            const newId = newNote.id;
+            setCurrentNoteId(newId);
+            if (clMode || clItems.length > 0) {
+                await updateNote(newId, t, c, img, col, clMode, clItems);
+            }
+            if (pin) await togglePin(newId);
+            if (comp) await toggleComplete(newId);
         }
     }, [currentNoteId, createNote, updateNote, togglePin, toggleComplete, getNoteById]);
 
-    // Auto-save on back navigation
     useEffect(() => {
         const unsubscribe = navigation.addListener("beforeRemove", () => {
             handleSave();
         });
         return unsubscribe;
     }, [navigation, handleSave]);
+
+    // Toggle checklist mode
+    const handleToggleChecklist = useCallback(() => {
+        if (!isChecklistModeRef.current) {
+            const lines = contentRef.current
+                .split("\n")
+                .filter((l) => l.trim() !== "");
+            const items: ChecklistItem[] =
+                lines.length > 0 ? lines.map((l) => makeItem(l)) : [makeItem()];
+            setChecklistItems(items);
+            setContent("");
+            setIsChecklistMode(true);
+        } else {
+            const text = checklistItemsRef.current
+                .filter((i) => i.text.trim() !== "")
+                .map((i) => i.text)
+                .join("\n");
+            setContent(text);
+            setChecklistItems([makeItem()]);
+            setIsChecklistMode(false);
+        }
+    }, []);
 
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -146,14 +210,74 @@ const NoteEditorScreen: React.FC = () => {
         ]);
     };
 
-    // Header buttons
+    // ── Checklist helpers ──
+    const addItemAfter = (index: number) => {
+        const item = makeItem();
+        setChecklistItems((prev) => {
+            const next = [...prev];
+            next.splice(index + 1, 0, item);
+            return next;
+        });
+        setTimeout(() => {
+            inputRefs.current[index + 1]?.focus();
+        }, 60);
+    };
+
+    const updateItemText = (id: string, text: string) => {
+        setChecklistItems((prev) =>
+            prev.map((i) => (i.id === id ? { ...i, text } : i))
+        );
+    };
+
+    const toggleItemChecked = (id: string) => {
+        setChecklistItems((prev) =>
+            prev.map((i) => (i.id === id ? { ...i, checked: !i.checked } : i))
+        );
+    };
+
+    const removeItem = (index: number) => {
+        setChecklistItems((prev) => {
+            if (prev.length <= 1) return [{ ...prev[0], text: "" }];
+            const next = [...prev];
+            next.splice(index, 1);
+            return next;
+        });
+        setTimeout(() => {
+            inputRefs.current[Math.max(0, index - 1)]?.focus();
+        }, 60);
+    };
+
+    // Header
     useEffect(() => {
         navigation.setOptions({
             headerRight: () => (
                 <View style={styles.headerButtons}>
-                    <TouchableOpacity style={styles.headerBtn} onPress={pickImage} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    {/* Image */}
+                    <TouchableOpacity
+                        style={styles.headerBtn}
+                        onPress={pickImage}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
                         <Text style={styles.headerBtnIcon}>🖼️</Text>
                     </TouchableOpacity>
+
+                    {/* Checklist toggle */}
+                    <TouchableOpacity
+                        style={styles.headerBtn}
+                        onPress={handleToggleChecklist}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <View style={[styles.listIconWrap, isChecklistMode && styles.listIconWrapActive]}>
+                            {[0, 1, 2].map((r) => (
+                                <View key={r} style={styles.listIconRow}>
+                                    <View style={[styles.listDot, isChecklistMode && styles.listDotActive]} />
+                                    <View style={[styles.listLine, isChecklistMode && styles.listLineActive]} />
+                                </View>
+                            ))}
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Complete */}
                     <TouchableOpacity
                         style={styles.headerBtn}
                         onPress={() => setIsCompleted((v) => !v)}
@@ -163,6 +287,8 @@ const NoteEditorScreen: React.FC = () => {
                             {isCompleted && <Text style={styles.headerCircleCheck}>✓</Text>}
                         </View>
                     </TouchableOpacity>
+
+                    {/* Pin */}
                     <TouchableOpacity
                         style={styles.headerBtn}
                         onPress={() => setIsPinned((v) => !v)}
@@ -170,12 +296,13 @@ const NoteEditorScreen: React.FC = () => {
                     >
                         <Text style={styles.headerBtnIcon}>{isPinned ? "📌" : "📍"}</Text>
                     </TouchableOpacity>
+
+                    {/* Color */}
                     <TouchableOpacity
                         style={styles.headerBtn}
                         onPress={() => setShowColorPicker(true)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                        {/* 4-quadrant palette icon */}
                         <View style={styles.paletteBtn}>
                             <View style={styles.paletteInner}>
                                 <View style={[styles.paletteQ, styles.paletteTopLeft,  { backgroundColor: "#FFD60A" }]} />
@@ -183,10 +310,11 @@ const NoteEditorScreen: React.FC = () => {
                                 <View style={[styles.paletteQ, styles.paletteBotLeft,  { backgroundColor: "#007AFF" }]} />
                                 <View style={[styles.paletteQ, styles.paletteBotRight, { backgroundColor: "#FF6B81" }]} />
                             </View>
-                            {/* ring showing current color */}
                             <View style={[styles.paletteRing, { borderColor: selectedColor === "#FFFFFF" ? "#C6C6C8" : selectedColor }]} />
                         </View>
                     </TouchableOpacity>
+
+                    {/* Done */}
                     <TouchableOpacity
                         style={styles.headerDoneBtn}
                         onPress={() => navigation.goBack()}
@@ -197,7 +325,7 @@ const NoteEditorScreen: React.FC = () => {
                 </View>
             ),
         });
-    }, [navigation, isPinned, isCompleted, selectedColor, handleSave]);
+    }, [navigation, isPinned, isCompleted, selectedColor, handleSave, isChecklistMode, handleToggleChecklist]);
 
     const handleDelete = () => {
         if (!existingNote && !currentNoteId) return;
@@ -218,6 +346,8 @@ const NoteEditorScreen: React.FC = () => {
     const noteToShow = currentNoteId ? getNoteById(currentNoteId) : existingNote;
     const noteBackground = selectedColor === "#FFFFFF" ? IOS.background : selectedColor;
 
+    const checkedItems = checklistItems.filter((i) => i.checked);
+
     return (
         <View style={[styles.container, { backgroundColor: noteBackground }]}>
             <ScrollView
@@ -234,24 +364,90 @@ const NoteEditorScreen: React.FC = () => {
                     value={title}
                     onChangeText={setTitle}
                     multiline
-                    autoFocus={!existingNote && !currentNoteId}
+                    autoFocus={!existingNote && !currentNoteId && !isChecklistMode}
                     selectionColor={IOS.systemBlue}
                 />
 
-                {/* Divider */}
                 <View style={styles.divider} />
 
-                {/* Content */}
-                <TextInput
-                    style={styles.contentInput}
-                    placeholder="Empieza a escribir aquí..."
-                    placeholderTextColor={IOS.systemGray}
-                    value={content}
-                    onChangeText={setContent}
-                    multiline
-                    textAlignVertical="top"
-                    selectionColor={IOS.systemBlue}
-                />
+                {/* Checklist OR normal content */}
+                {isChecklistMode ? (
+                    <View style={styles.checklistContainer}>
+                        {checklistItems.map((item, index) => (
+                            <View key={item.id} style={styles.checklistRow}>
+                                {/* Circle toggle */}
+                                <TouchableOpacity
+                                    onPress={() => toggleItemChecked(item.id)}
+                                    style={styles.circleBtn}
+                                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+                                >
+                                    <View style={[styles.circle, item.checked && styles.circleChecked]}>
+                                        {item.checked && (
+                                            <Text style={styles.circleCheckmark}>✓</Text>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+
+                                {/* Text input */}
+                                <TextInput
+                                    ref={(ref) => { inputRefs.current[index] = ref; }}
+                                    style={[
+                                        styles.checklistText,
+                                        item.checked && styles.checklistTextDone,
+                                    ]}
+                                    value={item.text}
+                                    onChangeText={(t) => updateItemText(item.id, t)}
+                                    placeholder="Elemento de lista"
+                                    placeholderTextColor={IOS.systemGray}
+                                    returnKeyType="next"
+                                    blurOnSubmit={false}
+                                    onSubmitEditing={() => addItemAfter(index)}
+                                    onKeyPress={({ nativeEvent }) => {
+                                        if (nativeEvent.key === "Backspace" && item.text === "") {
+                                            removeItem(index);
+                                        }
+                                    }}
+                                    selectionColor={IOS.systemBlue}
+                                    autoFocus={!existingNote && index === 0 && isChecklistMode}
+                                />
+                            </View>
+                        ))}
+
+                        {/* Add item button */}
+                        <TouchableOpacity
+                            style={styles.addItemBtn}
+                            onPress={() => addItemAfter(checklistItems.length - 1)}
+                            activeOpacity={0.6}
+                        >
+                            <View style={styles.addItemCircle}>
+                                <Text style={styles.addItemPlus}>+</Text>
+                            </View>
+                            <Text style={styles.addItemText}>Añadir elemento</Text>
+                        </TouchableOpacity>
+
+                        {/* Checked count label */}
+                        {checkedItems.length > 0 && (
+                            <View style={styles.checkedLabel}>
+                                <View style={styles.checkedLabelLine} />
+                                <Text style={styles.checkedLabelText}>
+                                    {checkedItems.length} completado{checkedItems.length !== 1 ? "s" : ""}
+                                </Text>
+                                <View style={styles.checkedLabelLine} />
+                            </View>
+                        )}
+                    </View>
+                ) : (
+                    <TextInput
+                        style={styles.contentInput}
+                        placeholder="Empieza a escribir aquí..."
+                        placeholderTextColor={IOS.systemGray}
+                        value={content}
+                        onChangeText={setContent}
+                        multiline
+                        textAlignVertical="top"
+                        selectionColor={IOS.systemBlue}
+                    />
+                )}
 
                 {/* Image gallery */}
                 {images.length > 0 && (
@@ -268,12 +464,7 @@ const NoteEditorScreen: React.FC = () => {
                                 <View style={styles.imageOverlay} />
                             </TouchableOpacity>
                         ))}
-                        {/* Add image tile */}
-                        <TouchableOpacity
-                            onPress={pickImage}
-                            style={styles.addImageTile}
-                            activeOpacity={0.7}
-                        >
+                        <TouchableOpacity onPress={pickImage} style={styles.addImageTile} activeOpacity={0.7}>
                             <Text style={styles.addImageIcon}>＋</Text>
                         </TouchableOpacity>
                     </View>
@@ -343,18 +534,13 @@ const NoteEditorScreen: React.FC = () => {
                     onPress={() => setShowColorPicker(false)}
                 >
                     <View style={styles.colorSheet}>
-                        {/* Handle */}
                         <View style={styles.sheetHandle} />
                         <Text style={styles.colorSheetTitle}>Color de la nota</Text>
-
                         <View style={styles.colorGrid}>
                             {NOTE_COLORS.map(({ label, value }) => (
                                 <TouchableOpacity
                                     key={value}
-                                    onPress={() => {
-                                        setSelectedColor(value);
-                                        setShowColorPicker(false);
-                                    }}
+                                    onPress={() => { setSelectedColor(value); setShowColorPicker(false); }}
                                     activeOpacity={0.8}
                                     style={styles.colorOptionWrapper}
                                 >
@@ -381,17 +567,11 @@ const NoteEditorScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingBottom: 40,
-    },
+    container: { flex: 1 },
+    scrollView: { flex: 1 },
+    scrollContent: { paddingBottom: 40 },
 
-    // ── Text inputs ──
+    // Title
     titleInput: {
         fontSize: 26,
         fontWeight: "700",
@@ -417,7 +597,7 @@ const styles = StyleSheet.create({
         minHeight: 280,
     },
 
-    // ── Header buttons ──
+    // ── Header ──
     headerButtons: {
         flexDirection: "row",
         alignItems: "center",
@@ -429,9 +609,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    headerBtnIcon: {
-        fontSize: 19,
-    },
+    headerBtnIcon: { fontSize: 19 },
     headerCircle: {
         width: 22,
         height: 22,
@@ -445,47 +623,56 @@ const styles = StyleSheet.create({
         backgroundColor: IOS.systemGreen,
         borderColor: IOS.systemGreen,
     },
-    headerCircleCheck: {
-        color: "#FFF",
-        fontSize: 12,
-        fontWeight: "700",
-    },
-    colorDotBtn: {
+    headerCircleCheck: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+
+    // Checklist toggle icon (3-line list icon)
+    listIconWrap: {
         width: 22,
-        height: 22,
-        borderRadius: 11,
-        borderWidth: 1.5,
-        borderColor: IOS.systemGray4,
+        height: 18,
+        justifyContent: "space-between",
+        padding: 1,
     },
-    paletteBtn: {
-        width: 26,
-        height: 26,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    paletteInner: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        overflow: "hidden",
+    listIconWrapActive: {},
+    listIconRow: {
         flexDirection: "row",
-        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 3,
     },
-    paletteQ: {
-        width: 11,
-        height: 11,
+    listDot: {
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
+        borderWidth: 1.5,
+        borderColor: IOS.secondaryLabel,
     },
+    listDotActive: {
+        borderColor: IOS.systemBlue,
+        backgroundColor: IOS.systemBlue,
+    },
+    listLine: {
+        height: 1.5,
+        flex: 1,
+        backgroundColor: IOS.secondaryLabel,
+        borderRadius: 1,
+    },
+    listLineActive: {
+        backgroundColor: IOS.systemBlue,
+    },
+
+    // Color palette
+    paletteBtn: { width: 26, height: 26, justifyContent: "center", alignItems: "center" },
+    paletteInner: {
+        width: 22, height: 22, borderRadius: 11, overflow: "hidden",
+        flexDirection: "row", flexWrap: "wrap",
+    },
+    paletteQ: { width: 11, height: 11 },
     paletteTopLeft:  { borderTopLeftRadius: 11 },
     paletteTopRight: { borderTopRightRadius: 11 },
     paletteBotLeft:  { borderBottomLeftRadius: 11 },
     paletteBotRight: { borderBottomRightRadius: 11 },
     paletteRing: {
-        position: "absolute",
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        borderWidth: 2,
-        borderColor: IOS.systemGray4,
+        position: "absolute", width: 26, height: 26, borderRadius: 13,
+        borderWidth: 2, borderColor: IOS.systemGray4,
     },
     headerDoneBtn: {
         backgroundColor: IOS.systemBlue,
@@ -494,13 +681,102 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         marginLeft: 4,
     },
-    headerDoneText: {
-        color: "#FFF",
-        fontSize: 15,
-        fontWeight: "600",
+    headerDoneText: { color: "#FFF", fontSize: 15, fontWeight: "600" },
+
+    // ── Checklist ──
+    checklistContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 20,
+    },
+    checklistRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        minHeight: 40,
+        marginBottom: 2,
+    },
+    circleBtn: {
+        paddingRight: 10,
+        paddingVertical: 8,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    circle: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        borderColor: IOS.systemGray,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "transparent",
+    },
+    circleChecked: {
+        backgroundColor: IOS.systemGreen,
+        borderColor: IOS.systemGreen,
+    },
+    circleCheckmark: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+    checklistText: {
+        flex: 1,
+        fontSize: 17,
+        color: IOS.label,
+        lineHeight: 24,
+        paddingVertical: 8,
+    },
+    checklistTextDone: {
+        color: IOS.systemGray,
+        textDecorationLine: "line-through",
     },
 
-    // ── Image Gallery ──
+    // Add item row
+    addItemBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 10,
+        marginTop: 4,
+    },
+    addItemCircle: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        borderColor: IOS.systemGray4,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "transparent",
+        marginRight: 10,
+    },
+    addItemPlus: {
+        fontSize: 16,
+        color: IOS.systemGray,
+        fontWeight: "300",
+        lineHeight: 20,
+    },
+    addItemText: {
+        fontSize: 17,
+        color: IOS.systemGray,
+    },
+
+    // Checked count label
+    checkedLabel: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 16,
+        marginBottom: 8,
+        gap: 8,
+    },
+    checkedLabelLine: {
+        flex: 1,
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: IOS.separator,
+    },
+    checkedLabelText: {
+        fontSize: 12,
+        color: IOS.systemGray,
+        fontWeight: "500",
+    },
+
+    // ── Images ──
     imageGallery: {
         flexDirection: "row",
         flexWrap: "wrap",
@@ -516,14 +792,8 @@ const styles = StyleSheet.create({
         overflow: "hidden",
         backgroundColor: IOS.systemGray5,
     },
-    noteImage: {
-        width: "100%",
-        height: "100%",
-    },
-    imageOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: "rgba(0,0,0,0.02)",
-    },
+    noteImage: { width: "100%", height: "100%" },
+    imageOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.02)" },
     addImageTile: {
         width: (SCREEN_WIDTH - 48) / 3,
         aspectRatio: 1,
@@ -534,32 +804,16 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    addImageIcon: {
-        fontSize: 28,
-        color: IOS.systemGray,
-        fontWeight: "300",
-    },
+    addImageIcon: { fontSize: 28, color: IOS.systemGray, fontWeight: "300" },
 
-    // ── Image Zoom ──
-    closeZoom: {
-        position: "absolute",
-        top: 54,
-        right: 20,
-        zIndex: 10,
-    },
+    // ── Zoom ──
+    closeZoom: { position: "absolute", top: 54, right: 20, zIndex: 10 },
     closeZoomCircle: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 32, height: 32, borderRadius: 16,
         backgroundColor: "rgba(80,80,80,0.9)",
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: "center", alignItems: "center",
     },
-    closeZoomText: {
-        color: "#FFF",
-        fontSize: 14,
-        fontWeight: "600",
-    },
+    closeZoomText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
 
     // ── Bottom bar ──
     bottomBar: {
@@ -572,19 +826,11 @@ const styles = StyleSheet.create({
         borderTopColor: IOS.separator,
         backgroundColor: "rgba(255,255,255,0.85)",
     },
-    dateText: {
-        fontSize: 13,
-        color: IOS.systemGray,
-        letterSpacing: -0.1,
-    },
-    deleteButton: {
-        padding: 4,
-    },
-    deleteIcon: {
-        fontSize: 18,
-    },
+    dateText: { fontSize: 13, color: IOS.systemGray, letterSpacing: -0.1 },
+    deleteButton: { padding: 4 },
+    deleteIcon: { fontSize: 18 },
 
-    // ── Color Sheet ──
+    // ── Color sheet ──
     modalOverlay: {
         flex: 1,
         backgroundColor: "rgba(0,0,0,0.45)",
@@ -599,58 +845,29 @@ const styles = StyleSheet.create({
         paddingBottom: 44,
     },
     sheetHandle: {
-        width: 36,
-        height: 4,
-        borderRadius: 2,
+        width: 36, height: 4, borderRadius: 2,
         backgroundColor: IOS.systemGray4,
-        alignSelf: "center",
-        marginBottom: 16,
+        alignSelf: "center", marginBottom: 16,
     },
     colorSheetTitle: {
-        fontSize: 17,
-        fontWeight: "600",
-        textAlign: "center",
-        color: IOS.label,
-        marginBottom: 20,
+        fontSize: 17, fontWeight: "600", textAlign: "center",
+        color: IOS.label, marginBottom: 20,
     },
-    colorGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "center",
-        gap: 16,
-    },
-    colorOptionWrapper: {
-        alignItems: "center",
-        gap: 6,
-    },
+    colorGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 16 },
+    colorOptionWrapper: { alignItems: "center", gap: 6 },
     colorOption: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
-        borderWidth: 1.5,
-        borderColor: IOS.systemGray4,
-        justifyContent: "center",
-        alignItems: "center",
+        width: 52, height: 52, borderRadius: 26,
+        borderWidth: 1.5, borderColor: IOS.systemGray4,
+        justifyContent: "center", alignItems: "center",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.08,
         shadowRadius: 3,
         elevation: 2,
     },
-    colorOptionSelected: {
-        borderColor: IOS.systemBlue,
-        borderWidth: 2.5,
-    },
-    colorCheckmark: {
-        fontSize: 22,
-        color: IOS.systemBlue,
-        fontWeight: "700",
-    },
-    colorLabel: {
-        fontSize: 11,
-        color: IOS.systemGray,
-        fontWeight: "500",
-    },
+    colorOptionSelected: { borderColor: IOS.systemBlue, borderWidth: 2.5 },
+    colorCheckmark: { fontSize: 22, color: IOS.systemBlue, fontWeight: "700" },
+    colorLabel: { fontSize: 11, color: IOS.systemGray, fontWeight: "500" },
 });
 
 export default NoteEditorScreen;
